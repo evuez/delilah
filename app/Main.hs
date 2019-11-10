@@ -3,19 +3,27 @@
 module Main where
 
 import Control.Monad ((<$!>), liftM)
+import Control.Monad.IO.Class (liftIO)
 import Data.Aeson (FromJSON(..), (.:), withObject)
 import Data.Char (toUpper)
 import Data.List (find, isPrefixOf)
 import Data.Maybe (fromMaybe)
-import qualified Data.Text.Lazy as T (concat, pack)
-import Network.HTTP.Types.Status (status403)
-import System.Environment (getEnvironment, lookupEnv)
+import Network.HTTP.Simple
+  ( getResponseStatusCode
+  , httpLBS
+  , parseRequest
+  , setRequestBodyJSON
+  )
+import Network.HTTP.Types.Status (status204, status403)
+import qualified Slack as Sl (Message(..))
+import System.Environment (getEnv, getEnvironment, lookupEnv)
 import Web.Scotty (ActionM, finish, jsonData, param, post, scotty, text)
 import qualified Web.Scotty as S (status)
 
 data Config = Config
   { port :: Int
   , tokens :: [(String, String)]
+  , slackURL :: String
   }
 
 data Status = Status
@@ -83,7 +91,8 @@ getConfig :: IO Config
 getConfig = do
   port' <- getPort
   tokens' <- getTokens
-  return Config {port = port', tokens = tokens'}
+  slackURL' <- getEnv "SLACK_URL"
+  return Config {port = port', tokens = tokens', slackURL = slackURL'}
 
 main :: IO ()
 main = getConfig >>= run
@@ -91,7 +100,8 @@ main = getConfig >>= run
 run :: Config -> IO ()
 run c = do
   port' <- getPort
-  scotty port' $ post "/status/:service" (auth c >> checkStatus) -- >> S.status status204 >> empty
+  scotty port' $
+    post "/status/:service" (auth c >> checkStatus >> S.status status204)
 
 auth :: Config -> ActionM ()
 auth c = do
@@ -114,12 +124,37 @@ serviceToken Config {tokens = tokens'} service = snd <$> find token tokens'
       ]
 
 checkStatus :: ActionM ()
-checkStatus = liftM update (jsonData :: ActionM Status) >>= handleUpdate
+checkStatus = do
+  url <- liftIO $ getEnv "SLACK_URL"
+  service <- param "service"
+  liftM update (jsonData :: ActionM Status) >>= handleUpdate url service
 
-handleUpdate :: StatusUpdate -> ActionM ()
-handleUpdate (StatusUpdate "operational" new') =
-  text $ T.concat ["Outage! New status: ", T.pack new']
-handleUpdate (StatusUpdate old' "operational") =
-  text $ T.concat ["Back to normal! Old status: ", T.pack old']
-handleUpdate (StatusUpdate old' new') =
-  text $ T.concat [T.pack old', " -> ", T.pack new']
+handleUpdate :: String -> String -> StatusUpdate -> ActionM ()
+handleUpdate url service (StatusUpdate "operational" new') =
+  liftIO $ notify url service "operational" new' ":fire:"
+handleUpdate url service (StatusUpdate old' "operational") =
+  liftIO $ notify url service old' "operational" ":heavy_check_mark:"
+handleUpdate url service (StatusUpdate old' new') =
+  liftIO $ notify url service old' new' ":radio:"
+
+notify :: String -> String -> String -> String -> String -> IO ()
+notify url service oldStatus newStatus emoji = do
+  req' <- parseRequest $ concat ["POST ", url]
+  let req =
+        setRequestBodyJSON (notifyBody service oldStatus newStatus emoji) req'
+  resp <- httpLBS req
+  putStrLn $ "Got HTTP " ++ show (getResponseStatusCode resp) -- TODO: 500 if status code != 200
+
+notifyBody :: String -> String -> String -> String -> Sl.Message
+notifyBody service oldStatus newStatus emoji =
+  Sl.Message $
+  concat
+    [ emoji
+    , " Service update: `"
+    , service
+    , "` changed its status from _"
+    , oldStatus
+    , "_ to *"
+    , newStatus
+    , "*"
+    ]

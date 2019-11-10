@@ -1,3 +1,3 @@
-# Changelog for status-bot
+# Changelog for delilah
 
 ## Unreleased changes
