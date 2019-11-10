@@ -1,5 +1,9 @@
 SOURCES := $(wildcard */*.hs)
 
+.PHONY: install
+install:
+	stack build --copy-bins
+
 .PHONY: format
 format: $(SOURCES)
 
