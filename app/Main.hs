@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Main where
 
 import Control.Monad ((<$!>), liftM)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (FromJSON(..), (.:), withObject)
 import Data.Char (toUpper)
 import Data.List (find, isPrefixOf)
@@ -17,12 +18,16 @@ import Network.HTTP.Simple
 import Network.HTTP.Types.Status (status204, status403)
 import qualified Slack as Sl (Message(..))
 import System.Environment (getEnv, getEnvironment, lookupEnv)
-import Web.Scotty (ActionM, finish, jsonData, param, post, scotty, text)
-import qualified Web.Scotty as S (status)
+import Web.Scotty (verbose, settings, Options(..))
+import Web.Scotty.Trans (scottyOptsT, ActionT, param, post, text, jsonData, finish)
+import qualified Web.Scotty.Trans as S (status)
+import Network.Wai.Handler.Warp (Settings, defaultSettings, setPort)
+import Control.Monad.Reader (MonadReader, ReaderT, asks, runReaderT, lift)
+import qualified Data.Text.Lazy as T (Text, pack)
 
 data Config = Config
-  { port :: Int
-  , tokens :: [(String, String)]
+  {
+   tokens :: [(String, String)]
   , slackURL :: String
   }
 
@@ -39,8 +44,7 @@ data StatusMeta = StatusMeta
   }
 
 data StatusPage = StatusPage
-  { id :: String
-  , statusIndicator :: String
+  { statusIndicator :: String
   , statusDescription :: String
   }
 
@@ -68,8 +72,7 @@ instance FromJSON StatusMeta where
 instance FromJSON StatusPage where
   parseJSON =
     withObject "StatusPage" $ \v ->
-      StatusPage <$> v .: "id" <*> v .: "status_indicator" <*>
-      v .: "status_description"
+      StatusPage <$> v .: "status_indicator" <*> v .: "status_description"
 
 instance FromJSON StatusComponent where
   parseJSON =
@@ -89,31 +92,50 @@ getTokens = filter (isPrefixOf "SERVICE_TOKEN_" . fst) <$!> getEnvironment
 
 getConfig :: IO Config
 getConfig = do
-  port' <- getPort
   tokens' <- getTokens
   slackURL' <- getEnv "SLACK_URL"
-  return Config {port = port', tokens = tokens', slackURL = slackURL'}
+  return Config {tokens = tokens', slackURL = slackURL'}
+
+getOptions :: IO Options
+getOptions = do
+  s <- getSettings
+  return Options { settings = s , verbose = 1 }
+
+getSettings :: IO Settings
+getSettings = liftM (flip setPort defaultSettings) getPort
+
+newtype ConfigM a = ConfigM { runConfigM :: ReaderT Config IO a } deriving (Applicative, Functor, Monad, MonadIO, MonadReader Config)
+
+
+type ActionD a = ActionT T.Text ConfigM a
 
 main :: IO ()
-main = getConfig >>= run
+main = do
+  o <- getOptions
+  c <- getConfig
+  let r m = runReaderT (runConfigM m) c
+  scottyOptsT o r $ post "/status/:service" (auth >> checkStatus >> S.status status204)
 
-run :: Config -> IO ()
-run c = do
-  port' <- getPort
-  scotty port' $
-    post "/status/:service" (auth c >> checkStatus >> S.status status204)
 
-auth :: Config -> ActionM ()
-auth c = do
-  service <- param "service" :: ActionM String
-  token <- param "token" :: ActionM String
-  case serviceToken c service of
-    Just envToken
-      | token == envToken -> text "OK"
+getHome :: ActionD ()
+getHome = do
+  slackURL' <- lift $ asks slackURL
+  service <- param "service"
+  text $ mconcat [service, T.pack slackURL']
+
+
+auth :: ActionD ()
+auth = do
+  service <- param "service" :: ActionD String
+  token <- param "token" :: ActionD String
+  tokens' <- lift $ asks tokens
+  case serviceToken tokens' service of
+    Just t
+      | token == t -> text "OK"
     _ -> (S.status status403 >> finish)
 
-serviceToken :: Config -> String -> Maybe String
-serviceToken Config {tokens = tokens'} service = snd <$> find token tokens'
+serviceToken :: [(String, String)] -> String -> Maybe String
+serviceToken tokens' service = snd <$> find token tokens'
   where
     token = \(x, _) -> x == ("SERVICE_TOKEN_" ++ key)
     key =
@@ -123,13 +145,13 @@ serviceToken Config {tokens = tokens'} service = snd <$> find token tokens'
       | x <- service
       ]
 
-checkStatus :: ActionM ()
+checkStatus :: ActionD ()
 checkStatus = do
   url <- liftIO $ getEnv "SLACK_URL"
   service <- param "service"
-  liftM update (jsonData :: ActionM Status) >>= handleUpdate url service
+  liftM update (jsonData :: ActionD Status) >>= handleUpdate url service
 
-handleUpdate :: String -> String -> StatusUpdate -> ActionM ()
+handleUpdate :: String -> String -> StatusUpdate -> ActionD ()
 handleUpdate url service (StatusUpdate "operational" new') =
   liftIO $ notify url service "operational" new' ":fire:"
 handleUpdate url service (StatusUpdate old' "operational") =
