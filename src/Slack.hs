@@ -8,6 +8,7 @@ module Slack
   ) where
 
 import Data.Aeson (ToJSON(..), (.=), object)
+import Lib (phrasecase)
 import Network.HTTP.Simple
   ( getResponseStatusCode
   , httpLBS
@@ -49,9 +50,9 @@ instance Show StatusMessage where
       , " Service update: `"
       , service'
       , "` changed its status from _"
-      , old'
+      , phrasecase old'
       , "_ to *"
-      , new'
+      , phrasecase new'
       , "*"
       ]
 
