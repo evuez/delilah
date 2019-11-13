@@ -2,6 +2,10 @@
 
 A web service to post [statuspage.io](https://www.statuspage.io/) updates to Slack.
 
+> :fire: Service update: `github` changed its status from *operational* to **major outage**
+
+> :heavy_check_mark: Service update: `github` changed its status from *major outage* to **operational**
+
 ## Deploying to Heroku
 
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
