@@ -1,0 +1,9 @@
+{
+  "name": "delilah",
+  "repository": "https://github.com/evuez/delilah",
+  "buildpacks": [ { "url": "https://github.com/mfine/heroku-buildpack-stack.git" } ],
+  "env": {
+    "SLACK_URL": { "description": "A Slack Incoming Webhook URL" }
+  }
+}
+

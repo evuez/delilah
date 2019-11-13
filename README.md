@@ -2,7 +2,9 @@
 
 A web service to post [statuspage.io](https://www.statuspage.io/) updates to Slack.
 
-## Deploy on Heroku
+## Deploying to Heroku
+
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy)
 
 You'll have to add a `SLACK_URL` environment variable with a [Slack webhook URL](https://api.slack.com/messaging/webhooks).
 
