@@ -10,7 +10,7 @@ import Data.List (isPrefixOf)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text.Lazy as T (Text, pack)
 import Lib (snakecase)
-import Network.HTTP.Types.Status (status204, status403, status502)
+import Network.HTTP.Types.Status (status202, status204, status403, status502)
 import Network.Wai.Handler.Warp (Settings, defaultSettings, setPort)
 import qualified Slack as Sl (Response(..), StatusMessage(..), post)
 import qualified StatusPage as SP (Status(..), StatusUpdate(..))
@@ -18,6 +18,7 @@ import System.Environment (getEnv, getEnvironment, lookupEnv)
 import Web.Scotty (Options(..))
 import Web.Scotty.Trans
   ( ActionT
+  , defaultHandler
   , finish
   , jsonData
   , param
@@ -64,7 +65,9 @@ main = do
   o <- getOptions
   c <- getConfig
   let r m = runReaderT (runConfigM m) c
-  scottyOptsT o r $ post "/status/:service" (auth >> checkStatus)
+  scottyOptsT o r $
+    defaultHandler (\_ -> S.status status202) >>
+    post "/status/:service" (auth >> checkStatus)
 
 auth :: ActionD ()
 auth = do
