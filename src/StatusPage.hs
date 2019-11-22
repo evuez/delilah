@@ -2,24 +2,35 @@
 
 module StatusPage
   ( Status(..)
-  , StatusUpdate(..)
+  , Update(..)
+  , Component(..)
   ) where
 
 import Data.Aeson (FromJSON(..), (.:), withObject)
 
 data Status = Status
-  { update :: StatusUpdate
+  { update :: Update
+  , component :: Component
   }
 
-data StatusUpdate = StatusUpdate
+data Update = Update
   { old :: String
   , new :: String
   }
 
-instance FromJSON Status where
-  parseJSON = withObject "Status" $ \v -> Status <$> v .: "component_update"
+data Component = Component
+  { name :: String
+  }
 
-instance FromJSON StatusUpdate where
+instance FromJSON Status where
   parseJSON =
-    withObject "StatusUpdate" $ \v ->
-      StatusUpdate <$> v .: "old_status" <*> v .: "new_status"
+    withObject "Status" $ \v ->
+      Status <$> v .: "component_update" <*> v .: "component"
+
+instance FromJSON Update where
+  parseJSON =
+    withObject "Update" $ \v ->
+      Update <$> v .: "old_status" <*> v .: "new_status"
+
+instance FromJSON Component where
+  parseJSON = withObject "Component" $ \v -> Component <$> v .: "name"

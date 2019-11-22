@@ -12,8 +12,8 @@ import qualified Data.Text.Lazy as T (Text, pack)
 import Lib (snakecase)
 import Network.HTTP.Types.Status (status202, status204, status403, status502)
 import Network.Wai.Handler.Warp (Settings, defaultSettings, setPort)
-import qualified Slack as Sl (Response(..), StatusMessage(..), post)
-import qualified StatusPage as SP (Status(..), StatusUpdate(..))
+import qualified Slack as Sl (Message(..), Response(..), post)
+import qualified StatusPage as SP (Component(..), Status(..), Update(..))
 import System.Environment (getEnv, getEnvironment, lookupEnv)
 import Web.Scotty (Options(..))
 import Web.Scotty.Trans
@@ -82,15 +82,16 @@ checkStatus :: ActionD ()
 checkStatus = do
   url <- lift $ asks slackURL
   service <- param "service"
-  res <- liftM SP.update jsonData >>= handleUpdate url service
+  res <- liftIO . Sl.post url . message service =<< jsonData
   case res of
     Sl.OK -> S.status status204
     Sl.Error err -> text (T.pack err) >> S.status status502
 
-handleUpdate :: String -> String -> SP.StatusUpdate -> ActionD Sl.Response
-handleUpdate url service (SP.StatusUpdate old'@"operational" new') =
-  liftIO $ Sl.post url $ Sl.StatusMessage service old' new' ":fire:"
-handleUpdate url service (SP.StatusUpdate old' new'@"operational") =
-  liftIO $ Sl.post url $ Sl.StatusMessage service old' new' ":heavy_check_mark:"
-handleUpdate url service (SP.StatusUpdate old' new') =
-  liftIO $ Sl.post url $ Sl.StatusMessage service old' new' ":radio:"
+message :: String -> SP.Status -> Sl.Message
+message service (SP.Status (SP.Update old new) (SP.Component component)) =
+  let emoji =
+        case (old, new) of
+          ("operational", _) -> ":fire:"
+          (_, "operational") -> ":heavy_check_mark:"
+          (_, _) -> ":radio:"
+  in Sl.Message service component old new emoji
