@@ -49,11 +49,11 @@ instance ToJSON Message where
 
 post :: String -> Message -> IO Response
 post url message = do
-  req' <- parseRequest $ concat ["POST ", url]
+  req' <- parseRequest ("POST " ++ url)
   let req = setRequestBodyJSON message req'
   resp <- httpLBS req
   case getResponseStatusCode resp of
-    200 -> return $ OK
+    200 -> return OK
     err -> return $ Error ("Request to Slack failed with HTTP " ++ show err)
 
 section :: Message -> String
@@ -70,4 +70,4 @@ section (Message service' _ old' new' emoji') =
     ]
 
 context :: Message -> String
-context (Message {component = component'}) = "*component*: " ++ component'
+context Message {component = component'} = "*component*: " ++ component'

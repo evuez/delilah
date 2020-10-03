@@ -18,3 +18,7 @@ test:
 .PHONY: test.watch
 test.watch:
 	stack test delilah:delilah-test --file-watch --fast
+
+.PHONY: build.watch
+build.watch:
+	ghcid --command "stack ghci --ghci-options=-fobject-code" --allow-eval --lint

@@ -3,7 +3,6 @@
 
 module Main where
 
-import Control.Monad ((<$!>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (MonadReader, ReaderT, asks, lift, runReaderT)
 import Data.List (isPrefixOf)
@@ -43,10 +42,10 @@ tokenPrefix :: String
 tokenPrefix = "SERVICE_TOKEN_"
 
 getPort :: IO Int
-getPort = read <$!> fmap (fromMaybe "3000") (lookupEnv "PORT")
+getPort = read <$> fmap (fromMaybe "3000") (lookupEnv "PORT")
 
 getTokens :: IO [(String, String)]
-getTokens = filter (isPrefixOf tokenPrefix . fst) <$!> getEnvironment
+getTokens = filter (isPrefixOf tokenPrefix . fst) <$> getEnvironment
 
 getConfig :: IO Config
 getConfig = do
@@ -66,7 +65,7 @@ main = do
   c <- getConfig
   let r m = runReaderT (runConfigM m) c
   scottyOptsT o r $
-    defaultHandler (\_ -> S.status status202) >>
+    defaultHandler (const $ S.status status202) >>
     post "/status/:service" (auth >> checkStatus)
 
 auth :: ActionD ()
