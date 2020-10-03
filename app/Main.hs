@@ -3,7 +3,7 @@
 
 module Main where
 
-import Control.Monad ((<$!>), liftM)
+import Control.Monad ((<$!>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (MonadReader, ReaderT, asks, lift, runReaderT)
 import Data.List (isPrefixOf)
@@ -43,7 +43,7 @@ tokenPrefix :: String
 tokenPrefix = "SERVICE_TOKEN_"
 
 getPort :: IO Int
-getPort = read <$!> liftM (fromMaybe "3000") (lookupEnv "PORT")
+getPort = read <$!> fmap (fromMaybe "3000") (lookupEnv "PORT")
 
 getTokens :: IO [(String, String)]
 getTokens = filter (isPrefixOf tokenPrefix . fst) <$!> getEnvironment
@@ -55,10 +55,10 @@ getConfig = do
   return Config {tokens = tokens', slackURL = slackURL'}
 
 getSettings :: IO Settings
-getSettings = liftM (flip setPort defaultSettings) getPort
+getSettings = (`setPort` defaultSettings) <$> getPort
 
 getOptions :: IO Options
-getOptions = liftM (Options 1) getSettings
+getOptions = Options 1 <$> getSettings
 
 main :: IO ()
 main = do
