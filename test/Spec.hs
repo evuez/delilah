@@ -3,7 +3,7 @@ import Test.Hspec
 
 main :: IO ()
 main =
-  hspec $ do
-    describe "snakecase" $ do
-      it "returns the all-caps snakecase version of the given string" $ do
+  hspec $
+    describe "snakecase" $
+      it "returns the all-caps snakecase version of the given string" $
         snakecase "some-name" `shouldBe` "SOME_NAME"

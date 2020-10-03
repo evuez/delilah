@@ -18,7 +18,7 @@ data Update = Update
   , new :: String
   }
 
-data Component = Component
+newtype Component = Component
   { name :: String
   }
 
