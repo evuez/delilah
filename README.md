@@ -1,5 +1,7 @@
 # delilah
 
+**[statuspage.io](https://www.statuspage.io/) now supports Slack, so this is pretty much useless.**
+
 A web service to post [statuspage.io](https://www.statuspage.io/) updates to Slack.
 
 > :fire: Service update: `github` changed its status from *operational* to **major outage**
